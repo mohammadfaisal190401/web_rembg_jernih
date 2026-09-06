@@ -1,0 +1,16 @@
+
+------- perintah aktifkan environment---------
+
+cd C:\Users\JUANDA\Desktop\web_rembg_jernih
+venv\Scripts\activate
+
+
+---------------jalankan web -----------------
+python app.py
+
+
+
+# Pastikan di folder web_rembg_jernih
+cd C:\Users\JUANDA\Desktop\web_rembg_jernih
+venv\Scripts\activate
+python app.py
