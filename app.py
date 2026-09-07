@@ -8,8 +8,6 @@ from datetime import datetime
 from flask import Flask, request, render_template, send_file, jsonify, Response, stream_with_context
 from werkzeug.utils import secure_filename
 from rembg import remove
-from PIL import Image
-import io
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -22,8 +20,8 @@ os.makedirs(app.config['RESULT_FOLDER'], exist_ok=True)
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp', 'bmp', 'tiff'}
 
-# ---------- SESSION STORE ----------
-sessions = {}  # session_id -> {'queue': Queue, 'files': list, 'total': int, 'done': int, 'status': list, 'cancel_event': Event}
+# Session store: session_id -> {queue, files, total, done, cancel_event, thread}
+sessions = {}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -51,21 +49,22 @@ def format_date(timestamp_str):
     else:
         return f"{hari}. {dt.day:02d}/{bulan}/{dt.year}"
 
-# ---------- PROSES BACKGROUND ----------
+# ---------- PROSES BACKGROUND DENGAN CANCEL ----------
 def process_images(session_id):
-    session = sessions[session_id]
+    session = sessions.get(session_id)
+    if not session:
+        return
     files = session['files']
     total = len(files)
-    queue = session['queue']
+    q = session['queue']
     cancel_event = session['cancel_event']
 
     history = load_history()
-    new_entries = []
 
     for idx, file_data in enumerate(files, start=1):
-        # Cek pembatalan
+        # Cek apakah dibatalkan
         if cancel_event.is_set():
-            queue.put({'type': 'cancelled'})
+            q.put({'type': 'cancelled'})
             break
 
         try:
@@ -80,7 +79,7 @@ def process_images(session_id):
             with open(upload_path, 'wb') as f:
                 f.write(file_bytes)
 
-            # Proses
+            # Proses remove background
             output_data = remove(file_bytes)
 
             result_filename = f"{base_name}_{unique_id}.png"
@@ -97,10 +96,9 @@ def process_images(session_id):
                 'timestamp': datetime.now().isoformat()
             }
             history.append(entry)
-            new_entries.append(entry)
             save_history(history)
 
-            # Kirim progress per file selesai
+            # Kirim progress
             progress_msg = {
                 'type': 'file_done',
                 'index': idx,
@@ -111,11 +109,10 @@ def process_images(session_id):
                 'download_url': f'/download/{unique_id}',
                 'entry': entry
             }
-            queue.put(progress_msg)
+            q.put(progress_msg)
 
         except Exception as e:
-            # Kirim error
-            queue.put({
+            q.put({
                 'type': 'error',
                 'index': idx,
                 'total': total,
@@ -123,14 +120,13 @@ def process_images(session_id):
                 'error': str(e)
             })
 
-    # Jika selesai normal (tidak dibatalkan)
+    # Kirim sinyal selesai atau batal
     if not cancel_event.is_set():
-        queue.put({'type': 'complete'})
+        q.put({'type': 'complete'})
     else:
-        # Kirim sinyal batal
-        queue.put({'type': 'cancelled'})
+        q.put({'type': 'cancelled'})
 
-    # Bersihkan session setelah selesai
+    # Hapus session setelah selesai
     sessions.pop(session_id, None)
 
 # ---------- ROUTES ----------
@@ -152,7 +148,6 @@ def upload():
     if not files or files[0].filename == '':
         return jsonify({'error': 'Tidak ada file dipilih'}), 400
 
-    # Siapkan data file
     file_data_list = []
     for file in files:
         if file and allowed_file(file.filename):
@@ -164,10 +159,10 @@ def upload():
         else:
             return jsonify({'error': f'Format file {file.filename} tidak didukung'}), 400
 
-    # Buat session
     session_id = uuid.uuid4().hex[:12]
     q = queue.Queue()
     cancel_event = threading.Event()
+
     sessions[session_id] = {
         'queue': q,
         'files': file_data_list,
@@ -176,10 +171,11 @@ def upload():
         'cancel_event': cancel_event
     }
 
-    # Mulai thread proses
+    # Jalankan thread
     thread = threading.Thread(target=process_images, args=(session_id,))
     thread.daemon = True
     thread.start()
+    sessions[session_id]['thread'] = thread
 
     return jsonify({'session_id': session_id, 'total': len(file_data_list)})
 
@@ -187,6 +183,7 @@ def upload():
 def cancel(session_id):
     if session_id not in sessions:
         return jsonify({'error': 'Session tidak ditemukan'}), 404
+    # Set event cancel
     sessions[session_id]['cancel_event'].set()
     return jsonify({'success': True})
 
@@ -206,7 +203,7 @@ def progress(session_id):
             except queue.Empty:
                 yield f"data: {json.dumps({'type': 'ping'})}\n\n"
                 continue
-        # Session sudah dihapus di thread, tapi amankan
+        # Hapus session
         sessions.pop(session_id, None)
 
     return Response(stream_with_context(generate()), mimetype='text/event-stream')
@@ -244,7 +241,9 @@ def download_result(entry_id):
     entry = next((e for e in history if e['id'] == entry_id), None)
     if not entry or not os.path.exists(entry['result_path']):
         return 'File tidak ditemukan', 404
-    return send_file(entry['result_path'], as_attachment=True, download_name=f"{entry['original_filename'].split('.')[0]}.png")
+    # Kirim file dengan nama asli + .png
+    original_name = entry['original_filename'].rsplit('.', 1)[0] + '.png'
+    return send_file(entry['result_path'], as_attachment=True, download_name=original_name)
 
 @app.route('/image/<entry_id>/<type>')
 def get_image(entry_id, type):

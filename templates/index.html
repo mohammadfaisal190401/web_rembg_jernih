@@ -77,10 +77,6 @@
         .lightbox .lightbox-footer button.delete { background: #d93025; color: white; }
         .lightbox .lightbox-footer button:active { transform: scale(0.95); }
 
-        .loader { display: none; text-align: center; padding: 20px; }
-        .loader .spinner { border: 5px solid #e8ecf1; border-top: 5px solid #1a73e8; border-radius: 50%; width: 40px; height: 40px; animation: spin 0.8s linear infinite; margin: 0 auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
         @media screen and (min-width: 481px) {
             .app { max-width: 480px; margin: 0 auto; }
         }
@@ -150,7 +146,7 @@
     let showOriginal = false;
     let sortOrder = 'desc';
     let currentLightboxId = null;
-    let autoDownload = true; // default active
+    let autoDownload = true;
     let processing = false;
     let sessionId = null;
     let eventSource = null;
@@ -180,19 +176,22 @@
 
     // ---------- FORMAT TANGGAL ----------
     function formatDate(timestamp) {
-        const dt = new Date(timestamp);
-        const days = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
-        const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-        const dayName = days[dt.getDay()];
-        const day = String(dt.getDate()).padStart(2,'0');
-        const month = months[dt.getMonth()];
-        const year = dt.getFullYear();
-        const now = new Date();
-        if (dt.getFullYear() === now.getFullYear()) {
-            return `${dayName}. ${day}/${month}`;
-        } else {
-            return `${dayName}. ${day}/${month}/${year}`;
-        }
+        try {
+            const dt = new Date(timestamp);
+            if (isNaN(dt.getTime())) return 'Tanggal error';
+            const days = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+            const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+            const dayName = days[dt.getDay()];
+            const day = String(dt.getDate()).padStart(2,'0');
+            const month = months[dt.getMonth()];
+            const year = dt.getFullYear();
+            const now = new Date();
+            if (dt.getFullYear() === now.getFullYear()) {
+                return `${dayName}. ${day}/${month}`;
+            } else {
+                return `${dayName}. ${day}/${month}/${year}`;
+            }
+        } catch(e) { return 'Tanggal error'; }
     }
 
     // ---------- LOAD HISTORY ----------
@@ -224,19 +223,21 @@
 
         const groups = {};
         sorted.forEach(entry => {
+            const dateKey = new Date(entry.timestamp).toDateString();
             const dateStr = formatDate(entry.timestamp);
-            if (!groups[dateStr]) groups[dateStr] = [];
-            groups[dateStr].push(entry);
+            if (!groups[dateKey]) {
+                groups[dateKey] = { label: dateStr, entries: [] };
+            }
+            groups[dateKey].entries.push(entry);
         });
 
         let html = '';
-        for (const [date, entries] of Object.entries(groups)) {
-            html += `<div class="group-label">${date}</div>`;
+        for (const key of Object.keys(groups)) {
+            const group = groups[key];
+            html += `<div class="group-label">${group.label}</div>`;
             html += `<div class="grid">`;
-            entries.forEach(entry => {
-                const imgSrc = showOriginal 
-                    ? `/image/${entry.id}/original` 
-                    : `/image/${entry.id}/result`;
+            group.entries.forEach(entry => {
+                const imgSrc = showOriginal ? `/image/${entry.id}/original` : `/image/${entry.id}/result`;
                 html += `
                     <div class="card" data-id="${entry.id}">
                         <div class="image-wrapper">
@@ -257,6 +258,7 @@
         }
         historyContainer.innerHTML = html;
 
+        // Event listener
         document.querySelectorAll('.expand-btn').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -264,7 +266,6 @@
                 openLightbox(id);
             });
         });
-
         document.querySelectorAll('.card .delete').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
@@ -298,7 +299,6 @@
     lightbox.addEventListener('click', function(e) {
         if (e.target === this) closeLightbox();
     });
-
     lightboxDelete.addEventListener('click', async function() {
         if (!currentLightboxId) return;
         if (!confirm('Hapus gambar ini?')) return;
@@ -357,7 +357,6 @@
         fileStatusList.innerHTML = '';
 
         try {
-            // 1. Upload
             const res = await fetch('/upload', {
                 method: 'POST',
                 body: formData
@@ -374,7 +373,7 @@
             this.textContent = `⏳ Memproses 0/${total}...`;
             progressText.textContent = `0 / ${total} photo`;
 
-            // 2. Buka SSE
+            // EventSource
             eventSource = new EventSource(`/progress/${sessionId}`);
             eventSource.onmessage = function(event) {
                 const data = JSON.parse(event.data);
@@ -395,11 +394,10 @@
                     fileStatusList.appendChild(statusItem);
                     fileStatusList.scrollTop = fileStatusList.scrollHeight;
 
-                    // Auto download
                     if (autoDownload) {
                         const link = document.createElement('a');
                         link.href = data.download_url;
-                        link.download = ''; // trigger download langsung ke folder default
+                        link.download = '';
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
@@ -419,39 +417,43 @@
 
                 } else if (data.type === 'cancelled') {
                     eventSource.close();
+                    eventSource = null;
                     processing = false;
                     btnProses.textContent = '⛔ Dibatalkan';
                     progressText.textContent = '⛔ Dibatalkan oleh user';
                     btnCancel.style.display = 'none';
                     setTimeout(() => {
-                        btnProses.textContent = '🚀 Hapus Background';
+                        resetUpload();
+                        // Sembunyikan progress setelah 2 detik
                         progressContainer.style.display = 'none';
-                    }, 3000);
-                    resetUpload();
+                    }, 2000);
 
                 } else if (data.type === 'complete') {
                     eventSource.close();
+                    eventSource = null;
                     processing = false;
                     progressText.textContent = '✅ Selesai!';
                     btnProses.textContent = '✅ Selesai';
                     btnCancel.style.display = 'none';
                     setTimeout(() => {
-                        btnProses.textContent = '🚀 Hapus Background';
+                        resetUpload();
                         progressContainer.style.display = 'none';
                     }, 3000);
-                    resetUpload();
                 }
             };
 
             eventSource.onerror = function(e) {
                 console.error('SSE error', e);
-                eventSource.close();
+                if (eventSource) {
+                    eventSource.close();
+                    eventSource = null;
+                }
                 processing = false;
                 resetUpload();
                 alert('Terjadi kesalahan koneksi. Coba lagi.');
             };
 
-            // Reset input
+            // Reset input & preview
             fileInput.value = '';
             fileCount.textContent = '';
             previewContainer.style.display = 'none';
@@ -463,35 +465,33 @@
         }
     });
 
-    // ---------- CANCEL ----------
+    // ---------- BATAL ----------
     btnCancel.addEventListener('click', async function() {
         if (!sessionId) return;
         if (!confirm('Batalkan proses editing?')) return;
         try {
             const res = await fetch(`/cancel/${sessionId}`, { method: 'POST' });
             if (res.ok) {
-                // Tutup event source jika masih terbuka
+                // Tutup event source
                 if (eventSource) {
                     eventSource.close();
                     eventSource = null;
                 }
-                // Tunggu sebentar agar thread berhenti
-                btnCancel.disabled = true;
-                btnCancel.textContent = '⛔ Membatalkan...';
-                setTimeout(() => {
-                    btnCancel.style.display = 'none';
-                    btnCancel.disabled = false;
-                    btnCancel.textContent = '⛔ Batal';
-                    processing = false;
-                    btnProses.textContent = '🚀 Hapus Background';
-                    progressText.textContent = '⛔ Dibatalkan';
-                    progressFill.style.width = '0%';
-                    // Reset setelah 2 detik
-                    setTimeout(() => {
-                        progressContainer.style.display = 'none';
-                        btnProses.disabled = false;
-                    }, 2000);
-                }, 1000);
+                // Reset UI ke keadaan awal seperti sebelum proses
+                processing = false;
+                btnProses.disabled = false;
+                btnProses.textContent = '🚀 Hapus Background';
+                btnCancel.style.display = 'none';
+                progressContainer.style.display = 'none';
+                progressFill.style.width = '0%';
+                fileStatusList.innerHTML = '';
+                // Kembalikan preview dan input (biarkan user pilih ulang)
+                fileInput.value = '';
+                fileCount.textContent = '';
+                previewContainer.style.display = 'none';
+                previewGrid.innerHTML = '';
+                // Refresh history untuk menghilangkan kemungkinan entry yang setengah jadi
+                await loadHistory();
             } else {
                 alert('Gagal membatalkan');
             }
@@ -505,10 +505,9 @@
         btnProses.disabled = false;
         btnProses.textContent = '🚀 Hapus Background';
         btnCancel.style.display = 'none';
-        // Jangan sembunyikan progress, biar user lihat hasil akhir
     }
 
-    // ---------- DELETE ENTRY ----------
+    // ---------- DELETE ----------
     async function deleteEntry(id) {
         try {
             const res = await fetch(`/delete/${id}`, { method: 'DELETE' });
@@ -522,7 +521,6 @@
         }
     }
 
-    // ---------- DELETE ALL ----------
     deleteAllBtn.addEventListener('click', async function() {
         if (!historyData.length) return;
         if (!confirm('Hapus SEMUA gambar dari history?')) return;
@@ -538,20 +536,17 @@
         }
     });
 
-    // ---------- TOGGLE ORIGINAL ----------
+    // ---------- TOGGLE ----------
     toggleOriginal.addEventListener('change', function() {
         showOriginal = this.checked;
         localStorage.setItem('showOriginal', showOriginal);
         renderHistory();
     });
-
-    // ---------- TOGGLE AUTO DOWNLOAD ----------
     toggleAutoDownload.addEventListener('change', function() {
         autoDownload = this.checked;
         localStorage.setItem('autoDownload', autoDownload);
     });
 
-    // ---------- SORTING ----------
     sortDesc.addEventListener('click', function() {
         sortOrder = 'desc';
         sortDesc.classList.add('active');
@@ -567,7 +562,7 @@
         renderHistory();
     });
 
-    // ---------- LOAD PREFERENCES ----------
+    // ---------- PREFERENSI ----------
     function loadPreferences() {
         const savedToggle = localStorage.getItem('showOriginal');
         if (savedToggle === 'true') {
@@ -585,7 +580,6 @@
             sortAsc.classList.remove('active');
         }
         const savedAuto = localStorage.getItem('autoDownload');
-        // default: true jika belum pernah disimpan
         if (savedAuto === 'false') {
             toggleAutoDownload.checked = false;
             autoDownload = false;
