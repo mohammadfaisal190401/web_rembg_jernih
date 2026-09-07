@@ -4,10 +4,16 @@ import json
 import threading
 import queue
 import time
+
+# Tambahkan ini untuk production
+import os
+port = int(os.environ.get('PORT', 5000))
+
 from datetime import datetime
 from flask import Flask, request, render_template, send_file, jsonify, Response, stream_with_context
 from werkzeug.utils import secure_filename
 from rembg import remove
+
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -261,5 +267,22 @@ def get_image(entry_id, type):
         return 'File tidak ditemukan', 404
     return send_file(path)
 
+# if __name__ == '__main__':
+#     app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)
+
+
+# if __name__ == '__main__':
+#     app.run(host='0.0.0.0', port=port, debug=False)
+
+
+# ... semua kode di atas ...
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
+
+
+
+
+
+
