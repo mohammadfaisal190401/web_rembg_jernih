@@ -173,7 +173,7 @@ def upload():
         'queue': q,
         'files': file_data_list,
         'total': len(file_data_list),
-        'done': 0,
+        'done': 0, 
         'cancel_event': cancel_event
     }
 

@@ -147,17 +147,52 @@
     "timestamp": "2026-09-07T08:35:04.820444"
   },
   {
-    "id": "35f9d9cd",
-    "original_filename": "sg-11134201-7rdyi-m12ijtux7oq0b1.png",
-    "upload_path": "uploads\\sg-11134201-7rdyi-m12ijtux7oq0b1_35f9d9cd.jpg",
-    "result_path": "results\\sg-11134201-7rdyi-m12ijtux7oq0b1_35f9d9cd.png",
-    "timestamp": "2026-09-07T08:38:41.147874"
-  },
-  {
     "id": "0615a09f",
     "original_filename": "tess.jpg",
     "upload_path": "uploads\\tess_0615a09f.jpg",
     "result_path": "results\\tess_0615a09f.png",
     "timestamp": "2026-09-07T08:46:03.761399"
+  },
+  {
+    "id": "bbe256ef",
+    "original_filename": "7596aa89c437407b28e7cd5771b18fa6.png",
+    "upload_path": "uploads\\7596aa89c437407b28e7cd5771b18fa6_bbe256ef.jpg",
+    "result_path": "results\\7596aa89c437407b28e7cd5771b18fa6_bbe256ef.png",
+    "timestamp": "2026-09-15T23:26:10.960595"
+  },
+  {
+    "id": "76255c50",
+    "original_filename": "674ae4a0cbedc88f4646661a2bfdd106.jpg",
+    "upload_path": "uploads\\674ae4a0cbedc88f4646661a2bfdd106_76255c50.jpg",
+    "result_path": "results\\674ae4a0cbedc88f4646661a2bfdd106_76255c50.png",
+    "timestamp": "2026-09-15T23:27:51.563533"
+  },
+  {
+    "id": "cde7cd16",
+    "original_filename": "unduhan_4.jpg",
+    "upload_path": "uploads\\unduhan_4_cde7cd16.jpg",
+    "result_path": "results\\unduhan_4_cde7cd16.png",
+    "timestamp": "2026-09-19T13:07:56.338764"
+  },
+  {
+    "id": "b05414b5",
+    "original_filename": "unduhan_2.jpg",
+    "upload_path": "uploads\\unduhan_2_b05414b5.jpg",
+    "result_path": "results\\unduhan_2_b05414b5.png",
+    "timestamp": "2026-09-19T13:09:46.863550"
+  },
+  {
+    "id": "fc394f65",
+    "original_filename": "a6de9ee0985fd712e53768ad14dc9322.png",
+    "upload_path": "uploads\\a6de9ee0985fd712e53768ad14dc9322_fc394f65.jpg",
+    "result_path": "results\\a6de9ee0985fd712e53768ad14dc9322_fc394f65.png",
+    "timestamp": "2026-09-19T13:11:35.053043"
+  },
+  {
+    "id": "17c078d3",
+    "original_filename": "e767de91ab1e5004db94af29c0b8bfe5.png",
+    "upload_path": "uploads\\e767de91ab1e5004db94af29c0b8bfe5_17c078d3.jpg",
+    "result_path": "results\\e767de91ab1e5004db94af29c0b8bfe5_17c078d3.png",
+    "timestamp": "2026-09-19T13:13:26.046986"
   }
 ]
